@@ -1,0 +1,44 @@
+# importing all the libaries that is to be used.
+import bs4
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import os
+import re
+
+# copy paste the required websites that need to be extracted.
+urls = [ # https://example ]
+
+# the location where the text from the content and title is to be stored
+save_directory = r'C:\Users\Sdvi\Desktop\Articles'
+
+# sanitizing the urls so that https, etc does not show up
+def sanitize_filename(url):
+    url = re.sub(r'^https?:\/\/', '', url)
+    sanitized = re.sub(r'[^\w\-]', '_', url)
+    return sanitized
+
+# page requesting so that we can access the page
+for url in urls:
+    try:
+        page = requests.get(url)
+        page.raise_for_status()
+
+# using beautiful soup for extracting the content and the titles from the websites
+        soup = BeautifulSoup(page.text, "html.parser")
+        title = soup.find("title").get_text() if soup.find("title") else "No Title"
+        content_text = soup.find("div", class_="td-post-content tagdiv-type")
+        content = content_text.get_text() if content_text else "No Content"
+
+# setting the name of each file as the url by using the sanitized url
+        sanitized_url = sanitize_filename(url)
+        file_path = os.path.join(save_directory, f'{sanitized_url}.txt')
+
+        with open(file_path, 'w', encoding='utf-8') as file:
+            file.write(f"Title: {title}\n\n")
+            file.write(content)
+
+        print(f"Content has been sucessfully saved as {file_path}")
+
+    except Exception as e:
+        print(f"Execution of program failed {url}: {e}")
