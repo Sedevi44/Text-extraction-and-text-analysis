@@ -1,0 +1,116 @@
+# importing all the libaries that is to be used
+import os
+import pandas as pd
+import re
+from textblob import TextBlob
+import syllapy
+from nltk.tokenize import word_tokenize, sent_tokenize
+from nltk.corpus import stopwords
+import math
+
+# setting the directory of the words that are to be used in the text analysis, such as the stop words, master dictionary, etc.
+stop_words_dir = r'C:\Users\example'
+master_dict_dir = r'C:\Users\example'
+articles_dir = r'C:\Users\example'
+output_file = r'C:\Users\example'
+# more can be added according to your use
+
+# loading the stop words to reduce noise from the text
+def load_stop_words(directory):
+    stop_words = set()
+    for filename in os.listdir(directory):
+        if filename.endswith(".txt"):
+            with open(os.path.join(directory, filename), 'r') as file:
+                stop_words.update(file.read().splitlines())
+    return set(stop_words)
+
+# loading the list of positive and negative words for sentiment analysis
+def load_master_dictionary(directory, stop_words):
+    positive_words = set()
+    negative_words = set()
+    with open(os.path.join(directory, 'positive-words.txt'), 'r', encoding='utf-8', errors='ignore') as file:
+        for line in file:
+            word = line.strip()
+            if word not in stop_words:
+                positive_words.add(word)
+    with open(os.path.join(directory, 'negative-words.txt'), 'r', encoding='utf-8', errors='ignore') as file:
+        for line in file:
+            word = line.strip()
+            if word not in stop_words:
+                negative_words.add(word)
+    return positive_words, negative_words
+
+stop_words = load_stop_words(stop_words_dir)
+positive_words, negative_words = load_master_dictionary(master_dict_dir, stop_words)
+
+# analyze of multiple text
+def analyze_text(text):
+    words = word_tokenize(text)
+    sentences = sent_tokenize(text)
+
+    positive_score = 0
+    negative_score = 0
+    complex_word_count = 0
+    personal_pronouns = 0
+    total_syllables = 0
+
+    personal_pronouns_list = {'i', 'me', 'my', 'mine', 'myself', 'we', 'our', 'ours', 'ourselves', 'us', 'you', 'your', 'yours', 'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she', 'her', 'hers', 'herself', 'it', 'its', 'itself', 'they', 'them', 'their', 'theirs', 'themselves'}
+
+    words_cleaned = [word.lower() for word in words if word.lower() not in stop_words and word.isalpha()]
+    
+    for word in words_cleaned:
+        if word in positive_words:
+            positive_score += 1
+        elif word in negative_words:
+            negative_score += 1
+
+        syllables = syllapy.count(word)
+        if syllables > 2:
+            complex_word_count += 1
+            
+        if word in personal_pronouns_list:
+            personal_pronouns += 1
+            
+        total_syllables += syllables
+    
+    word_count = len(words_cleaned)
+    avg_word_length = sum(len(word) for word in words_cleaned) / word_count if word_count else 0
+    avg_sentence_length = sum(len(sent.split()) for sent in sentences) / len(sentences) if sentences else 0
+    syllable_per_word = total_syllables / word_count if word_count else 0
+    percentage_of_complex_words = (complex_word_count / word_count) * 100 if word_count else 0
+    
+    blob = TextBlob(text)
+    polarity_score = blob.sentiment.polarity
+    subjectivity_score = blob.sentiment.subjectivity
+
+    fog_index = 0.4 * (avg_sentence_length + percentage_of_complex_words)
+    
+    return {
+        'Positive Score': positive_score,
+        'Negative Score': negative_score,
+        'Polarity Score': polarity_score,
+        'Subjectivity Score': subjectivity_score,
+        'Avg Sentence Length': avg_sentence_length,
+        'Percentage of Complex Words': percentage_of_complex_words,
+        'FOG Index': fog_index,
+        'Avg Number of Words Per Sentence': avg_sentence_length,
+        'Complex Word Count': complex_word_count,
+        'Word Count': word_count,
+        'Syllable Per Word': syllable_per_word,
+        'Personal Pronouns': personal_pronouns,
+        'Avg Word Length': avg_word_length,
+    }
+
+# final output and setting the file in a csv file format. Also, specifying the path of the file.
+results = []
+for filename in os.listdir(articles_dir):
+    if filename.endswith('.txt'):
+        file_path = os.path.join(articles_dir, filename)
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
+            text = file.read()
+            analysis = analyze_text(text)
+            analysis['text'] = filename
+            results.append(analysis)
+
+results_df = pd.DataFrame(results)
+results_df.to_csv(output_file, index=False)
